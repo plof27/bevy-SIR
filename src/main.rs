@@ -3,6 +3,8 @@ use bevy_prototype_lyon::prelude::*;
 use rand::prelude::*;
 
 const POPULATION: u32 = 300; // how many meeples
+const START_INFECTED_CHANCE: f32 = 0.01; // % chance that a meeple starts infected
+
 const MEEPLE_SPEED: f32 = 40.0; // units/s
 const MEEPLE_STEP_SIZE: f32 = 120.0; // approximate distance a meeple moves before turning
 
@@ -87,17 +89,23 @@ fn spawn_meeples(
         let x_pos = (rng.gen::<f32>() - 0.5) * BOUNDING_BOX_SIZE + BOUNDING_BOX_OFFSET.0;
         let y_pos = (rng.gen::<f32>() - 0.5) * BOUNDING_BOX_SIZE + BOUNDING_BOX_OFFSET.1;
 
+        let infection_information = if rng.gen::<f32>() < START_INFECTED_CHANCE {
+            (InfectionStatus::Infected, meeple_colors.infected.clone())
+        } else {
+            (InfectionStatus::Susceptible, meeple_colors.susceptible.clone())
+        };
+
         commands
             .spawn(primitive(
                 // makes a SpriteBundle from a shape with lyon
-                meeple_colors.susceptible.clone(),
+                infection_information.1,
                 &mut meshes,
                 ShapeType::Circle(4.0),
                 TessellationMode::Fill(&FillOptions::default()),
                 Vec3::new(x_pos, y_pos, 0.0),
             ))
             .with(Meeple)
-            .with(InfectionStatus::Susceptible)
+            .with(infection_information.0)
             .with(DirectedMover{
                 speed: MEEPLE_SPEED,
                 target_location: Vec2::new(x_pos, y_pos)
