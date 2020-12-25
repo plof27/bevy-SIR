@@ -2,8 +2,9 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use rand::prelude::*;
 
-const POPULATION: u32 = 1000;
-const MEEPLE_SPEED: f32 = 4.0;
+const POPULATION: u32 = 100; // how many meeples
+const MEEPLE_SPEED: f32 = 40.0; // units/s
+const MEEPLE_STEP_SIZE: f32 = 120.0; // approximate distance a meeple moves before turning
 
 #[derive(Debug)]
 struct Colors {
@@ -35,6 +36,7 @@ fn main() {
         .add_startup_stage("spawn_entities", SystemStage::parallel())
         .add_startup_system_to_stage("init_resources", boil_plates.system())
         .add_startup_system_to_stage("spawn_entities", spawn_meeples.system())
+        .add_system(move_meeples.system())
         .run();
 }
 
@@ -86,6 +88,7 @@ fn move_meeples(
     time: Res<Time>,
     mut meeples_query: Query<(&mut Transform, &mut DirectedMover), With<Meeple>>,
 ) {
+    let mut rng = rand::thread_rng();
 
     for (mut transform, mut directed_mover) in meeples_query.iter_mut() {
         let distance_to_move = directed_mover.speed * time.delta_seconds();
@@ -97,8 +100,24 @@ fn move_meeples(
         let squared_y_distance = y_distance * y_distance;
         let squared_distance_to_target = squared_x_distance + squared_y_distance;
 
-        // if (directed_mover.target_location == transform.translation) {
-        //     // make a new one somehow
-        // } else if ()
+        if directed_mover.target_location == (transform.translation[0], transform.translation[1]) {
+            // pick a new target
+            let offset = Vec3::new(
+                (rng.gen::<f32>() - 0.5) * MEEPLE_STEP_SIZE, 
+                (rng.gen::<f32>() - 0.5) * MEEPLE_STEP_SIZE, 
+                0.0
+            );
+            let new_pos = transform.translation + offset;
+            directed_mover.target_location = (new_pos.x, new_pos.y);
+
+        } else if squared_distance_to_target <= squared_distance_to_move {
+            // we're within a frame of reaching our target. jump to it baby!
+            transform.translation[0] = directed_mover.target_location.0;
+            transform.translation[1] = directed_mover.target_location.1;
+        } else {
+            // just move normally
+            let velocity = Vec3::new(x_distance, y_distance, 0.0).normalize() * distance_to_move;
+            transform.translation += velocity;
+        }
     }
 }
