@@ -2,9 +2,12 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 use rand::prelude::*;
 
-const POPULATION: u32 = 100; // how many meeples
+const POPULATION: u32 = 300; // how many meeples
 const MEEPLE_SPEED: f32 = 40.0; // units/s
 const MEEPLE_STEP_SIZE: f32 = 120.0; // approximate distance a meeple moves before turning
+
+const BOUNDING_BOX_SIZE: f32 = 600.0; // side length of the meeples' playpen
+const BOUNDING_BOX_OFFSET: (f32, f32, f32) = (-250.0, 0.0, 0.0); // position of the center of the box
 
 #[derive(Debug)]
 struct Colors {
@@ -40,16 +43,34 @@ fn main() {
         .run();
 }
 
-fn boil_plates(commands: &mut Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
+fn boil_plates(
+    commands: &mut Commands, 
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
     let meeple_colors = Colors {
         susceptible: materials.add(Color::rgb(0.1, 0.1, 0.7).into()), // blue
         infected: materials.add(Color::rgb(0.7, 0.1, 0.1).into()), // red
         recovered: materials.add(Color::rgb(0.1, 0.7, 0.1).into()), // green
     };
 
+    let half_bounding_box_size = BOUNDING_BOX_SIZE * 0.5;
+
     commands
         .spawn(Camera2dBundle::default())
-        .insert_resource(meeple_colors);
+        .insert_resource(meeple_colors)
+        .spawn(primitive(
+            materials.add(Color::rgb(0.1, 0.1, 0.1).into()), // dark gray
+            &mut meshes,
+            ShapeType::Quad(
+                (-half_bounding_box_size, half_bounding_box_size).into(),
+                (-half_bounding_box_size, -half_bounding_box_size).into(),
+                (half_bounding_box_size, -half_bounding_box_size).into(),
+                (half_bounding_box_size, half_bounding_box_size).into(),
+            ),
+            TessellationMode::Stroke(&StrokeOptions::default().with_line_width(4.0)),
+            Vec3::new(BOUNDING_BOX_OFFSET.0, BOUNDING_BOX_OFFSET.1, BOUNDING_BOX_OFFSET.2),
+        ));
 }
 
 fn spawn_meeples(
