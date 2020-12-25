@@ -40,6 +40,7 @@ fn main() {
         .add_startup_system_to_stage("init_resources", boil_plates.system())
         .add_startup_system_to_stage("spawn_entities", spawn_meeples.system())
         .add_system(move_meeples.system())
+        .add_system(keep_meeples_in_box.system())
         .run();
 }
 
@@ -54,13 +55,13 @@ fn boil_plates(
         recovered: materials.add(Color::rgb(0.1, 0.7, 0.1).into()), // green
     };
 
-    let half_bounding_box_size = BOUNDING_BOX_SIZE * 0.5;
+    let half_bounding_box_size = BOUNDING_BOX_SIZE * 0.5 + 5.0; // add some padding to make it look prettier
 
     commands
         .spawn(Camera2dBundle::default())
         .insert_resource(meeple_colors)
         .spawn(primitive(
-            materials.add(Color::rgb(0.1, 0.1, 0.1).into()), // dark gray
+            materials.add(Color::rgb(0.15, 0.15, 0.15).into()), // dark gray
             &mut meshes,
             ShapeType::Quad(
                 (-half_bounding_box_size, half_bounding_box_size).into(),
@@ -83,9 +84,8 @@ fn spawn_meeples(
 
     // use a for loop instead of spawn batch because of thread safety limitations
     for _ in 0..POPULATION {
-        // TODO: figure out real boundaries for this
-        let x_pos = (rng.gen::<f32>() - 0.5) * 1000.0;
-        let y_pos = (rng.gen::<f32>() - 0.5) * 500.0;
+        let x_pos = (rng.gen::<f32>() - 0.5) * BOUNDING_BOX_SIZE + BOUNDING_BOX_OFFSET.0;
+        let y_pos = (rng.gen::<f32>() - 0.5) * BOUNDING_BOX_SIZE + BOUNDING_BOX_OFFSET.1;
 
         commands
             .spawn(primitive(
@@ -107,11 +107,11 @@ fn spawn_meeples(
 
 fn move_meeples(
     time: Res<Time>,
-    mut meeples_query: Query<(&mut Transform, &mut DirectedMover), With<Meeple>>,
+    mut meeple_query: Query<(&mut Transform, &mut DirectedMover), With<Meeple>>,
 ) {
     let mut rng = rand::thread_rng();
 
-    for (mut transform, mut directed_mover) in meeples_query.iter_mut() {
+    for (mut transform, mut directed_mover) in meeple_query.iter_mut() {
         // extract the 2d (x,y) position of the meeple. almost all we need from the transform
         // (although we need to write to transform.translation directly when jumping)
         let position = transform.translation.truncate(); 
@@ -137,6 +137,30 @@ fn move_meeples(
             // just move normally
             let velocity = vector_to_target.normalize() * distance_to_move;
             transform.translation += velocity.extend(0.0);
+        }
+    }
+}
+
+fn keep_meeples_in_box(
+    mut meeple_query: Query<(&Transform, &mut DirectedMover), With<Meeple>>,
+) {
+
+    for (transform, mut directed_mover) in meeple_query.iter_mut() {
+        let half_bounding_box_size = BOUNDING_BOX_SIZE * 0.5;
+        let position = transform.translation.truncate();
+
+        // if a meeple goes off the edge, change it's target to something inside the box
+        // we add/subtract the step size to "turn the meeple around"
+        if position.x < BOUNDING_BOX_OFFSET.0 - half_bounding_box_size {
+            directed_mover.target_location.x += MEEPLE_STEP_SIZE;
+        } else if position.x > BOUNDING_BOX_OFFSET.0 + half_bounding_box_size {
+            directed_mover.target_location.x -= MEEPLE_STEP_SIZE;
+        } 
+        
+        if position.y < BOUNDING_BOX_OFFSET.1 - half_bounding_box_size {
+            directed_mover.target_location.y += MEEPLE_STEP_SIZE;
+        } else if position.y > BOUNDING_BOX_OFFSET.1 + half_bounding_box_size {
+            directed_mover.target_location.y -= MEEPLE_STEP_SIZE;
         }
     }
 }
