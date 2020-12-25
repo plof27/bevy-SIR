@@ -42,9 +42,9 @@ fn main() {
 
 fn boil_plates(commands: &mut Commands, mut materials: ResMut<Assets<ColorMaterial>>) {
     let meeple_colors = Colors {
-        susceptible: materials.add(Color::rgb(0.1, 0.4, 0.5).into()), // blue
-        infected: materials.add(Color::rgb(0.8, 0.0, 0.0).into()), // red
-        recovered: materials.add(Color::rgb(0.3, 0.4, 0.3).into()), // green
+        susceptible: materials.add(Color::rgb(0.1, 0.1, 0.7).into()), // blue
+        infected: materials.add(Color::rgb(0.7, 0.1, 0.1).into()), // red
+        recovered: materials.add(Color::rgb(0.1, 0.7, 0.1).into()), // green
     };
 
     commands
