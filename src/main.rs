@@ -19,6 +19,12 @@ enum InfectionStatus {
     Recovered,
 }
 
+#[derive(Copy, Clone, Debug)]
+struct DirectedMover { // things that move with intent
+    speed: f32, // rate of movement
+    target_location: (f32, f32) // (x, y) place you're moving to
+}
+
 // Marker component for meeples. Meeples durdle around and get sick.
 struct Meeple;
 
@@ -68,6 +74,31 @@ fn spawn_meeples(
                 Vec3::new(x_pos, y_pos, 0.0),
             ))
             .with(Meeple)
-            .with(InfectionStatus::Susceptible);
+            .with(InfectionStatus::Susceptible)
+            .with(DirectedMover{
+                speed: MEEPLE_SPEED,
+                target_location: (x_pos, y_pos)
+            });
+    }
+}
+
+fn move_meeples(
+    time: Res<Time>,
+    mut meeples_query: Query<(&mut Transform, &mut DirectedMover), With<Meeple>>,
+) {
+
+    for (mut transform, mut directed_mover) in meeples_query.iter_mut() {
+        let distance_to_move = directed_mover.speed * time.delta_seconds();
+        let squared_distance_to_move = distance_to_move * distance_to_move;
+        
+        let x_distance = directed_mover.target_location.0 - transform.translation[0];
+        let y_distance = directed_mover.target_location.1 - transform.translation[1];
+        let squared_x_distance = x_distance * x_distance;
+        let squared_y_distance = y_distance * y_distance;
+        let squared_distance_to_target = squared_x_distance + squared_y_distance;
+
+        // if (directed_mover.target_location == transform.translation) {
+        //     // make a new one somehow
+        // } else if ()
     }
 }
