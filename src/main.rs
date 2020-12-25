@@ -23,7 +23,7 @@ enum InfectionStatus {
 #[derive(Copy, Clone, Debug)]
 struct DirectedMover { // things that move with intent
     speed: f32, // rate of movement
-    target_location: (f32, f32) // (x, y) place you're moving to
+    target_location: Vec2 // (x, y) place you're moving to
 }
 
 // Marker component for meeples. Meeples durdle around and get sick.
@@ -79,7 +79,7 @@ fn spawn_meeples(
             .with(InfectionStatus::Susceptible)
             .with(DirectedMover{
                 speed: MEEPLE_SPEED,
-                target_location: (x_pos, y_pos)
+                target_location: Vec2::new(x_pos, y_pos)
             });
     }
 }
@@ -91,33 +91,31 @@ fn move_meeples(
     let mut rng = rand::thread_rng();
 
     for (mut transform, mut directed_mover) in meeples_query.iter_mut() {
+        // extract the 2d (x,y) position of the meeple. almost all we need from the transform
+        // (although we need to write to transform.translation directly when jumping)
+        let position = transform.translation.truncate(); 
+
         let distance_to_move = directed_mover.speed * time.delta_seconds();
-        let squared_distance_to_move = distance_to_move * distance_to_move;
         
-        let x_distance = directed_mover.target_location.0 - transform.translation[0];
-        let y_distance = directed_mover.target_location.1 - transform.translation[1];
-        let squared_x_distance = x_distance * x_distance;
-        let squared_y_distance = y_distance * y_distance;
-        let squared_distance_to_target = squared_x_distance + squared_y_distance;
+        let vector_to_target = directed_mover.target_location - position;
+        let distance_to_target = vector_to_target.length();
 
-        if directed_mover.target_location == (transform.translation[0], transform.translation[1]) {
+        if directed_mover.target_location == position {
             // pick a new target
-            let offset = Vec3::new(
+            let offset = Vec2::new(
                 (rng.gen::<f32>() - 0.5) * MEEPLE_STEP_SIZE, 
-                (rng.gen::<f32>() - 0.5) * MEEPLE_STEP_SIZE, 
-                0.0
+                (rng.gen::<f32>() - 0.5) * MEEPLE_STEP_SIZE
             );
-            let new_pos = transform.translation + offset;
-            directed_mover.target_location = (new_pos.x, new_pos.y);
+            directed_mover.target_location = position + offset;
 
-        } else if squared_distance_to_target <= squared_distance_to_move {
+        } else if distance_to_target <= distance_to_move {
             // we're within a frame of reaching our target. jump to it baby!
-            transform.translation[0] = directed_mover.target_location.0;
-            transform.translation[1] = directed_mover.target_location.1;
+            // extend the target location so they're both Vec3's
+            transform.translation = directed_mover.target_location.extend(0.0);
         } else {
             // just move normally
-            let velocity = Vec3::new(x_distance, y_distance, 0.0).normalize() * distance_to_move;
-            transform.translation += velocity;
+            let velocity = vector_to_target.normalize() * distance_to_move;
+            transform.translation += velocity.extend(0.0);
         }
     }
 }
