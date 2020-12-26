@@ -4,6 +4,9 @@ use rand::prelude::*;
 
 const POPULATION: u32 = 300; // how many meeples
 const START_INFECTED_CHANCE: f32 = 0.01; // % chance that a meeple starts infected
+const INFECTION_DISTANCE: f32 = 20.0; // how close (in units) do two meeples have to be to risk spread of infection?
+const SQUARED_INFECTION_DISTANCE: f32 = INFECTION_DISTANCE * INFECTION_DISTANCE; // it's a square now!
+const INFECTION_CHANCE: f32 = 0.001; // % chance that two meeples within the infection distance for 1 update tick spread the disease
 
 const MEEPLE_SPEED: f32 = 40.0; // units/s
 const MEEPLE_STEP_SIZE: f32 = 120.0; // approximate distance a meeple moves before turning
@@ -18,7 +21,7 @@ struct Colors {
     recovered: Handle<bevy::prelude::ColorMaterial>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum InfectionStatus {
     Susceptible,
     Infected,
@@ -43,6 +46,7 @@ fn main() {
         .add_startup_system_to_stage("spawn_entities", spawn_meeples.system())
         .add_system(move_meeples.system())
         .add_system(keep_meeples_in_box.system())
+        .add_system(spread_infection.system())
         .run();
 }
 
@@ -169,6 +173,35 @@ fn keep_meeples_in_box(
             directed_mover.target_location.y += MEEPLE_STEP_SIZE;
         } else if position.y > BOUNDING_BOX_OFFSET.1 + half_bounding_box_size {
             directed_mover.target_location.y -= MEEPLE_STEP_SIZE;
+        }
+    }
+}
+
+fn spread_infection(
+    mut meeple_query: Query<(
+        &Transform, 
+        &mut InfectionStatus, 
+        &mut Handle<bevy::prelude::ColorMaterial>
+    ), With<Meeple>>,
+    time: Res<Time>,
+    meeple_colors: Res<Colors>,
+) {
+    let mut rng = rand::thread_rng();
+    
+    for (infected_transform, infected_infection_status, _) in meeple_query.iter() {
+        if *infected_infection_status == InfectionStatus::Infected { // for all infected meeples
+            for (susceptible_transform, mut infection_status, mut color) in meeple_query.iter_mut() {
+                if *infection_status == InfectionStatus::Susceptible { // for all susceptible meeples
+                    let vector_between = infected_transform.translation.truncate() - susceptible_transform.translation.truncate();
+                    let squared_distance = vector_between.length_squared();
+                    if squared_distance <= (SQUARED_INFECTION_DISTANCE) { // if the meeples are close enough to risk spread
+                        if rng.gen::<f32>() <= INFECTION_CHANCE { // if this meeple got really unlucky
+                            *color = meeple_colors.infected.clone(); // udpate color
+                            *infection_status = InfectionStatus::Infected; // udpate status
+                        }
+                    }
+                }
+            }
         }
     }
 }
